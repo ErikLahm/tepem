@@ -6,7 +6,10 @@ authors = ["Erik Weilandt <erik.weilandt+git@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
+numpy = "^1.25.1"
+sympy = "^1.12"
+matplotlib = "^3.7.2"
 
 
 [build-system]
