@@ -1,6 +1,8 @@
 import numpy as np
 import numpy.typing as npt
 
+# ________________q_1_4_shape_functions_velocity_____________________________________
+
 
 def phi_0(x: float, y: float) -> float:
     return (
@@ -216,3 +218,6 @@ def grad_phi_9(x: float, y: float) -> npt.NDArray[np.float64]:
         10.6666666666667 * y**3 - 16.0 * y**2 + 7.33333333333333 * y - 1.0
     )
     return np.array([phi_dx, phi_dy])
+
+
+# ______________________________end________________________________________
