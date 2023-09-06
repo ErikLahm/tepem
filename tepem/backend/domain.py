@@ -4,6 +4,7 @@ from typing import Callable, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
+from backend.mapping import Mapping
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
@@ -25,7 +26,7 @@ class Domain:
 
     def slice_domain(
         self, num_slices: int
-    ) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.int32]]:
+    ) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
         """
         Method slices the domain in slabs. Each Slab is identified with the points making up the
         slab.
@@ -60,6 +61,29 @@ class Domain:
         ltg = np.hstack((ltg_lower, ltg_upper))
         return all_coords, ltg
 
+    def get_phy_dof_coords(
+        self, num_slabs: int, sf_shape: Tuple[int, int], velo_sf: bool = False
+    ) -> npt.NDArray[np.float64]:
+        ref_x_coords = np.linspace(0, 1, sf_shape[0] + 1)
+        if velo_sf:
+            ref_y_coords = np.linspace(0, 1, sf_shape[1] + 1)
+            ref_y_coords = np.delete(ref_y_coords, [-1, 1])
+        ref_y_coords = np.linspace(0, 1, sf_shape[1] + 1)
+        phy_dof_coords = np.zeros(
+            shape=(sf_shape[0] * (num_slabs + 1) * len(ref_y_coords), 2)
+        )
+        phy_dof_idx = 0
+        all_map_coords, map_ltg = self.slice_domain(num_slices=num_slabs)
+        for row in map_ltg:
+            aff_map = Mapping(all_map_coords[row])
+            for ref_x in ref_x_coords:
+                for ref_y in ref_y_coords:
+                    current_phy_coords = aff_map.slab_map(ref_x=ref_x, ref_y=ref_y)
+                    phy_dof_coords[phy_dof_idx][0] = current_phy_coords[0]
+                    phy_dof_coords[phy_dof_idx][1] = current_phy_coords[1]
+                    phy_dof_idx += 1
+        return phy_dof_coords
+
     def visualise_domain(
         self, coords: npt.NDArray[np.float64], ltg: npt.NDArray[np.int32]
     ) -> Tuple[Figure, Axes]:
@@ -67,11 +91,11 @@ class Domain:
         x_coords = np.linspace(0, self.length, 500)
         upper_y = np.array([self.upper_bdn(x_coord) for x_coord in x_coords])
         lower_y = np.array([self.lower_bdn(x_coord) for x_coord in x_coords])
-        ax.plot(x_coords, upper_y)  # type: ignore
-        ax.plot(x_coords, lower_y)  # type: ignore
-        ax.scatter(coords[:, 0], coords[:, 1])  # type: ignore
+        ax.plot(x_coords, upper_y, "grey")  # type: ignore
+        ax.plot(x_coords, lower_y, "grey")  # type: ignore
         for slab in ltg:
-            ax.vlines(coords[slab[0]][0], coords[slab[0]][1], coords[slab[3]][1])  # type: ignore
-            ax.vlines(coords[slab[2]][0], coords[slab[2]][1], coords[slab[5]][1])  # type: ignore
+            ax.vlines(coords[slab[0]][0], coords[slab[0]][1], coords[slab[3]][1], colors="grey", linestyles="dashdot")  # type: ignore
+            ax.vlines(coords[slab[2]][0], coords[slab[2]][1], coords[slab[5]][1], colors="grey", linestyles="dashdot")  # type: ignore
+        ax.scatter(coords[:, 0], coords[:, 1], c="grey")  # type: ignore
         # plt.show()  # type: ignore
         return fig, ax
