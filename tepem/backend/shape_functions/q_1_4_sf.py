@@ -221,3 +221,18 @@ def grad_phi_9(x: float, y: float) -> npt.NDArray[np.float64]:
 
 
 # ______________________________end________________________________________
+
+Q14_SF_LIST = [phi_0, phi_1, phi_2, phi_3, phi_4, phi_5, phi_6, phi_7, phi_8, phi_9]
+
+Q14_GRAD_SF_LIST = [
+    grad_phi_0,
+    grad_phi_1,
+    grad_phi_2,
+    grad_phi_3,
+    grad_phi_4,
+    grad_phi_5,
+    grad_phi_6,
+    grad_phi_7,
+    grad_phi_8,
+    grad_phi_9,
+]
