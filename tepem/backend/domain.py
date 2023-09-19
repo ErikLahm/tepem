@@ -65,18 +65,19 @@ class Domain:
         self, num_slabs: int, sf_shape: Tuple[int, int], velo_sf: bool = False
     ) -> npt.NDArray[np.float64]:
         ref_x_coords = np.linspace(0, 1, sf_shape[0] + 1)
-        if velo_sf:
-            ref_y_coords = np.linspace(0, 1, sf_shape[1] + 1)
-            ref_y_coords = np.delete(ref_y_coords, [-1, 1])
         ref_y_coords = np.linspace(0, 1, sf_shape[1] + 1)
+        if velo_sf:
+            ref_y_coords = np.delete(ref_y_coords, [-1, 0])
         phy_dof_coords = np.zeros(
             shape=(sf_shape[0] * (num_slabs + 1) * len(ref_y_coords), 2)
         )
         phy_dof_idx = 0
         all_map_coords, map_ltg = self.slice_domain(num_slices=num_slabs)
-        for row in map_ltg:
+        for j, row in enumerate(map_ltg):
             aff_map = Mapping(all_map_coords[row])
-            for ref_x in ref_x_coords:
+            for i, ref_x in enumerate(ref_x_coords):
+                if j != 0 and i == 0:
+                    continue
                 for ref_y in ref_y_coords:
                     current_phy_coords = aff_map.slab_map(ref_x=ref_x, ref_y=ref_y)
                     phy_dof_coords[phy_dof_idx][0] = current_phy_coords[0]
@@ -96,6 +97,6 @@ class Domain:
         for slab in ltg:
             ax.vlines(coords[slab[0]][0], coords[slab[0]][1], coords[slab[3]][1], colors="grey", linestyles="dashdot")  # type: ignore
             ax.vlines(coords[slab[2]][0], coords[slab[2]][1], coords[slab[5]][1], colors="grey", linestyles="dashdot")  # type: ignore
-        ax.scatter(coords[:, 0], coords[:, 1], c="grey")  # type: ignore
+        ax.scatter(coords[:, 0], coords[:, 1], c="grey", marker=".")  # type: ignore
         # plt.show()  # type: ignore
         return fig, ax
