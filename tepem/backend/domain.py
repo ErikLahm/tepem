@@ -69,7 +69,7 @@ class Domain:
         if velo_sf:
             ref_y_coords = np.delete(ref_y_coords, [-1, 0])
         phy_dof_coords = np.zeros(
-            shape=(sf_shape[0] * (num_slabs + 1) * len(ref_y_coords), 2)
+            shape=((sf_shape[0] * (num_slabs) + 1) * len(ref_y_coords), 2)
         )
         phy_dof_idx = 0
         all_map_coords, map_ltg = self.slice_domain(num_slices=num_slabs)
@@ -88,7 +88,7 @@ class Domain:
     def visualise_domain(
         self, coords: npt.NDArray[np.float64], ltg: npt.NDArray[np.int32]
     ) -> Tuple[Figure, Axes]:
-        fig, ax = plt.subplots()  # type: ignore
+        fig, ax = plt.subplots(figsize=(15, 10))  # type: ignore
         x_coords = np.linspace(0, self.length, 500)
         upper_y = np.array([self.upper_bdn(x_coord) for x_coord in x_coords])
         lower_y = np.array([self.lower_bdn(x_coord) for x_coord in x_coords])

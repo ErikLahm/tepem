@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from backend.assembling import add_inital_penalty, assemble_g, assemble_n, assemble_rhs
 from backend.domain import Domain
+from backend.expected_solutions import EX_SOL, EX_SOL_q16
 from backend.ltg_generator import generate_ltg
 from backend.mapping import Mapping
 from backend.shape_functions.q_1_2_sf import Q12_GRAD_SF_LIST, Q12_SF_LIST
@@ -30,55 +31,6 @@ def g_1(x_1: float, x_2: float) -> float:
         return 0
 
 
-SHALL_SOL = [
-    0.009375,
-    0.0125,
-    0.009375,
-    0.009375,
-    0.0125,
-    0.009375,
-    0.009375,
-    0.0125,
-    0.009375,
-    0.009375,
-    0.0125,
-    0.009375,
-    0.009375,
-    0.0125,
-    0.009375,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    10,
-    10,
-    10,
-    7.5,
-    7.5,
-    7.5,
-    5,
-    5,
-    5,
-    2.5,
-    2.5,
-    2.5,
-    0,
-    0,
-    0,
-]
-
-EX_SOL = np.array(SHALL_SOL).reshape((45, 1))
 VELO_SHAPE = (1, 4)
 PRESSURE_SHAPE = (1, 2)
 VELO_PARTIAL = True
@@ -132,15 +84,30 @@ def main() -> None:
     upper = np.hstack((n_matrix, g_matrix))
     lower = np.hstack((d_matrix, zero_block))
     s_matrix = np.vstack((upper, lower))
+    np.savetxt(
+        f"tepem/exports/full_matrix_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.txt",
+        s_matrix,
+        delimiter=",",
+    )
+    np.savetxt(
+        f"tepem/exports/rhs_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.txt",
+        rhs,
+        delimiter=",",
+    )
     solution = np.linalg.solve(s_matrix, rhs)
     num_velo_dof = (1 * num_slabs + 1) * (VELO_SHAPE[1] + 1)
     if VELO_PARTIAL:
         num_velo_dof = (1 * num_slabs + 1) * (VELO_SHAPE[1] - 1)
-    _, ax_sol = solution_visualizer(
+    fig_sol, ax_sol = solution_visualizer(
         solution=solution,
         num_vel_dof=num_velo_dof,
         velo_coords=phys_coords,
         pres_coords=phys_pre_coords,
+        pres_shape=PRESSURE_SHAPE,
+    )
+    fig_sol.savefig(
+        f"tepem/exports/solution_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.png",
+        dpi=300,
     )
     # ----------------------------------------
     # Troubleshooting
@@ -152,6 +119,7 @@ def main() -> None:
     #     pres_coords=phys_pre_coords,
     # )
     # residue = rhs - ex_rhs
+    # diff_solution = abs(solution - EX_SOL)
     schur = np.dot(np.dot(d_matrix, np.linalg.inv(n_matrix)), g_matrix)
     s, v, dh = np.linalg.svd(schur)
     rank_schur = np.linalg.matrix_rank(schur)
@@ -159,8 +127,8 @@ def main() -> None:
     map_k = Mapping(slab_coord=dom_coords[dom_ltg[3]])
     ref_x, ref_y = 0.55, 0.75
     p_x, p_y = map_k.slab_map(ref_x, ref_y)
-    _, ax = dom.visualise_domain(coords=dom_coords, ltg=dom_ltg)  # type: ignore
-    ax.scatter(p_x, p_y, c="red", marker="+", label="test mapping")  # type: ignore
+    fig, ax = dom.visualise_domain(coords=dom_coords, ltg=dom_ltg)  # type: ignore
+    ax.scatter(p_x, p_y, c="red", marker="+", label=f"test mapping in slab 4:\n $x_{{ref}}=${ref_x}, $y_{{ref}}=${ref_y}")  # type: ignore
     ax.scatter(phys_coords[:, 0], phys_coords[:, 1], c="green", label="velocity dof")
     ax.scatter(
         phys_pre_coords[:, 0],
@@ -171,8 +139,14 @@ def main() -> None:
     )
     for i, coords in enumerate(phys_coords):
         ax.annotate(str(i), (coords[0], coords[1]))
+    ax.set_ylabel("radius in y-direction")
+    ax.set_xlabel("legth in x-direction")
     ax.legend()
-    # plt.show()  # type: ignore
+    fig.savefig(
+        f"tepem/exports/domain_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.png",
+        dpi=300,
+    )
+    plt.show()  # type: ignore
 
 
 if __name__ == "__main__":

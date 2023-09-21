@@ -76,5 +76,5 @@ def integral_b(
             * abs(jac_det)
         )
         integral_sum += partial_sum
-    integral = integral_sum
+    integral = -1 * integral_sum
     return integral
