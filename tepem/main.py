@@ -11,7 +11,11 @@ from backend.shape_functions.q_1_4_velo_sf import Q14_GRAD_SF_LIST
 from backend.shape_functions.q_1_5_velo_sf import Q15_GRAD_SF_LIST
 from backend.shape_functions.q_1_6_velo_sf import Q16_GRAD_SF_LIST
 from backend.shape_functions.q_1_7_velo_sf import Q17_GRAD_SF_LIST
+from backend.shape_functions.q_2_4_velo_sf import Q24_GRAD_SF_LIST
+from backend.shape_functions.q_2_5_velo_sf import Q25_GRAD_SF_LIST
+from backend.shape_functions.q_2_6_velo_sf import Q26_GRAD_SF_LIST
 from backend.shape_functions.q_2_sf import Q2_SF_LIST
+from backend.shape_functions.q_3_4_velo_sf import Q34_GRAD_SF_LIST
 from backend.visualizer import solution_visualizer
 
 # from backend.shape_functions.q_1_4_sf import Q14_GRAD_SF_LIST
@@ -31,7 +35,7 @@ def g_1(x_1: float, x_2: float) -> float:
         return 0
 
 
-VELO_SHAPE = (1, 4)
+VELO_SHAPE = (2, 4)
 PRESSURE_SHAPE = (1, 2)
 VELO_PARTIAL = True
 
@@ -53,7 +57,7 @@ def main() -> None:
     pres_ltg = generate_ltg(num_slabs=num_slabs, fe_order=PRESSURE_SHAPE)
     n_matrix = assemble_n(
         ref_ltg=velo_ltg,
-        grad_sfs=Q14_GRAD_SF_LIST,
+        grad_sfs=Q24_GRAD_SF_LIST,
         domain_coords=dom_coords,
         domain_ltg=dom_ltg,
     )
@@ -67,7 +71,7 @@ def main() -> None:
         velo_ltg=velo_ltg,
         press_ltg=pres_ltg,
         press_sfs=Q12_SF_LIST,
-        grad_vel_sfs=Q14_GRAD_SF_LIST,
+        grad_vel_sfs=Q24_GRAD_SF_LIST,
         domain_coords=dom_coords,
         domain_ltg=dom_ltg,
     )
@@ -84,20 +88,20 @@ def main() -> None:
     upper = np.hstack((n_matrix, g_matrix))
     lower = np.hstack((d_matrix, zero_block))
     s_matrix = np.vstack((upper, lower))
-    np.savetxt(
-        f"tepem/exports/full_matrix_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.txt",
-        s_matrix,
-        delimiter=",",
-    )
-    np.savetxt(
-        f"tepem/exports/rhs_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.txt",
-        rhs,
-        delimiter=",",
-    )
+    # np.savetxt(
+    #     f"tepem/exports/full_matrix_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.txt",
+    #     s_matrix,
+    #     delimiter=",",
+    # )
+    # np.savetxt(
+    #     f"tepem/exports/rhs_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.txt",
+    #     rhs,
+    #     delimiter=",",
+    # )
     solution = np.linalg.solve(s_matrix, rhs)
-    num_velo_dof = (1 * num_slabs + 1) * (VELO_SHAPE[1] + 1)
+    num_velo_dof = (VELO_SHAPE[0] * num_slabs + 1) * (VELO_SHAPE[1] + 1)
     if VELO_PARTIAL:
-        num_velo_dof = (1 * num_slabs + 1) * (VELO_SHAPE[1] - 1)
+        num_velo_dof = (VELO_SHAPE[0] * num_slabs + 1) * (VELO_SHAPE[1] - 1)
     fig_sol, ax_sol = solution_visualizer(
         solution=solution,
         num_vel_dof=num_velo_dof,
@@ -105,10 +109,10 @@ def main() -> None:
         pres_coords=phys_pre_coords,
         pres_shape=PRESSURE_SHAPE,
     )
-    fig_sol.savefig(
-        f"tepem/exports/solution_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.png",
-        dpi=300,
-    )
+    # fig_sol.savefig(
+    #     f"tepem/exports/solution_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.png",
+    #     dpi=300,
+    # )
     # ----------------------------------------
     # Troubleshooting
     # ex_rhs = s_matrix.dot(EX_SOL)
@@ -142,10 +146,10 @@ def main() -> None:
     ax.set_ylabel("radius in y-direction")
     ax.set_xlabel("legth in x-direction")
     ax.legend()
-    fig.savefig(
-        f"tepem/exports/domain_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.png",
-        dpi=300,
-    )
+    # fig.savefig(
+    #     f"tepem/exports/domain_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.png",
+    #     dpi=300,
+    # )
     plt.show()  # type: ignore
 
 
