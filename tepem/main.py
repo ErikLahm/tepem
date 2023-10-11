@@ -12,6 +12,7 @@ from backend.shape_functions.q_1_5_velo_sf import Q15_GRAD_SF_LIST
 from backend.shape_functions.q_1_6_velo_sf import Q16_GRAD_SF_LIST
 from backend.shape_functions.q_1_7_velo_sf import Q17_GRAD_SF_LIST
 from backend.shape_functions.q_2_4_velo_sf import Q24_GRAD_SF_LIST
+from backend.shape_functions.q_2_4_velo_sf_cheb import Q24_GRAD_SF_CHEB_LIST
 from backend.shape_functions.q_2_5_velo_sf import Q25_GRAD_SF_LIST
 from backend.shape_functions.q_2_6_velo_sf import Q26_GRAD_SF_LIST
 from backend.shape_functions.q_2_sf import Q2_SF_LIST
@@ -48,9 +49,11 @@ def main() -> None:
     dom = Domain(LENGTH, upper_bdn=lambda x: RADIUS, lower_bdn=lambda x: -RADIUS)
     dom_coords, dom_ltg = dom.slice_domain(num_slabs)
     phys_coords = dom.get_phy_dof_coords(
-        num_slabs, sf_shape=VELO_SHAPE, velo_sf=VELO_PARTIAL
+        num_slabs, sf_shape=VELO_SHAPE, velo_sf=VELO_PARTIAL, cheby_points=False
     )
-    phys_pre_coords = dom.get_phy_dof_coords(num_slabs, sf_shape=PRESSURE_SHAPE)
+    phys_pre_coords = dom.get_phy_dof_coords(
+        num_slabs, sf_shape=PRESSURE_SHAPE, cheby_points=False
+    )
     velo_ltg = generate_ltg(
         num_slabs=num_slabs, fe_order=VELO_SHAPE, velocity_ltg=VELO_PARTIAL
     )
@@ -89,12 +92,12 @@ def main() -> None:
     lower = np.hstack((d_matrix, zero_block))
     s_matrix = np.vstack((upper, lower))
     # np.savetxt(
-    #     f"tepem/exports/full_matrix_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.txt",
+    #     f"tepem/exports/full_matrix_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}_slabs{num_slabs}.txt",
     #     s_matrix,
     #     delimiter=",",
     # )
     # np.savetxt(
-    #     f"tepem/exports/rhs_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.txt",
+    #     f"tepem/exports/rhs_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}_slabs{num_slabs}.txt",
     #     rhs,
     #     delimiter=",",
     # )
@@ -128,8 +131,8 @@ def main() -> None:
     s, v, dh = np.linalg.svd(schur)
     rank_schur = np.linalg.matrix_rank(schur)
     # -----------------------------------------
-    map_k = Mapping(slab_coord=dom_coords[dom_ltg[3]])
-    ref_x, ref_y = 0.55, 0.75
+    map_k = Mapping(slab_coord=dom_coords[dom_ltg[0]])
+    ref_x, ref_y = 0, 0
     p_x, p_y = map_k.slab_map(ref_x, ref_y)
     fig, ax = dom.visualise_domain(coords=dom_coords, ltg=dom_ltg)  # type: ignore
     ax.scatter(p_x, p_y, c="red", marker="+", label=f"test mapping in slab 4:\n $x_{{ref}}=${ref_x}, $y_{{ref}}=${ref_y}")  # type: ignore
