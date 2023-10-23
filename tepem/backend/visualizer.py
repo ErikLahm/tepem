@@ -24,9 +24,10 @@ def solution_visualizer(
         u_x,
         u_y,
         arrow_lengths,
-        width=0.01,
-        headlength=3,
-        headaxislength=3,
+        # scale=0.5,
+        # width=0.01,
+        # headlength=3,
+        # headaxislength=3,
         # cmap="Greys",
     )
     ax[0].grid(True)  # type: ignore

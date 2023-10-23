@@ -5,7 +5,7 @@ import numpy.typing as npt
 from backend.integrals import integral_a, integral_b
 from backend.mapping import Mapping
 
-EPSILON = 1e-6
+EPSILON = 1e-12
 
 
 def assemble_n(
@@ -13,6 +13,7 @@ def assemble_n(
     grad_sfs: List[Callable[[float, float], npt.NDArray[np.float64]]],
     domain_coords: npt.NDArray[np.float64],
     domain_ltg: npt.NDArray[np.int64],
+    nu: float,
 ) -> npt.NDArray[np.float64]:
     assert (
         len(grad_sfs) == ref_ltg.shape[1]
@@ -31,16 +32,17 @@ def assemble_n(
                     jacobian=aff_map.jacobian,
                     grad_sf_k=grad_sfs[k],
                     grad_sf_j=grad_sfs[l],
+                    nu=nu,
                 )
                 n_matrix[row][col] += integral
     zero_buffer = np.zeros(shape=(num_vel_dof, num_vel_dof))
     upper_half = np.vstack((n_matrix, zero_buffer))
     lower_half = np.vstack((zero_buffer, n_matrix))
     n_matrix = np.hstack((upper_half, lower_half))
-    # assert np.linalg.matrix_rank(n_matrix) == min(n_matrix.shape), (
-    #     f"Laplacian matrix is not full rank: rank(N)={np.linalg.matrix_rank(n_matrix)} "
-    #     f"but should be rank(N)=min(m,m)={min(n_matrix.shape)}."
-    # )
+    assert np.linalg.matrix_rank(n_matrix) == min(n_matrix.shape), (
+        f"Laplacian matrix is not full rank: rank(N)={np.linalg.matrix_rank(n_matrix)} "
+        f"but should be rank(N)=min(m,m)={min(n_matrix.shape)}."
+    )
     return n_matrix
 
 
@@ -102,10 +104,10 @@ def assemble_g(
         g_matrix_halfs.append(g_matrix)
         g_matrix = np.zeros(shape=(num_vel_dof, num_pres_dof))
     g_matrix = np.vstack((g_matrix_halfs[0], g_matrix_halfs[1]))
-    # assert np.linalg.matrix_rank(g_matrix) == min(g_matrix.shape), (
-    #     f"Gradient matrix is not full rank: rank(G)={np.linalg.matrix_rank(g_matrix)} "
-    #     f"but should be rank(G)=min(m,n)={min(g_matrix.shape)}."
-    # )
+    assert np.linalg.matrix_rank(g_matrix) == min(g_matrix.shape), (
+        f"Gradient matrix is not full rank: rank(G)={np.linalg.matrix_rank(g_matrix)} "
+        f"but should be rank(G)=min(m,n)={min(g_matrix.shape)}."
+    )
     return g_matrix
 
 

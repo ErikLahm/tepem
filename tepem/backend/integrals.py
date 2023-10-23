@@ -114,6 +114,7 @@ def integral_a(
     jacobian: Callable[[float, float], npt.NDArray[np.float64]],
     grad_sf_k: Callable[[float, float], npt.NDArray[np.float64]],
     grad_sf_j: Callable[[float, float], npt.NDArray[np.float64]],
+    nu: float,
 ) -> float:
     integral_sum = 0
     for i, weight in enumerate(WEIGHTS):
@@ -131,7 +132,7 @@ def integral_a(
             * abs(jac_det)
         )
         integral_sum += partial_sum
-    integral = integral_sum
+    integral = nu * integral_sum
     return integral
 
 
