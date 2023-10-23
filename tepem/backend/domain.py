@@ -18,6 +18,16 @@ def get_repeating_pattern(num_slices: int) -> npt.NDArray[np.int32]:
     return pattern
 
 
+def get_cheby_points(start: float, end: float, num: int) -> npt.NDArray[np.float64]:
+    ref_points = [-np.cos(np.pi * i / num) for i in range(num + 1)]
+    interval_points = [map_11_to_ab(x, start, end) for x in ref_points]
+    return np.array(interval_points)
+
+
+def map_11_to_ab(x: float, a: float, b: float) -> float:
+    return (b - a) / 2 * x + (a + b) / 2
+
+
 @dataclass
 class Domain:
     length: float
@@ -62,10 +72,17 @@ class Domain:
         return all_coords, ltg
 
     def get_phy_dof_coords(
-        self, num_slabs: int, sf_shape: Tuple[int, int], velo_sf: bool = False
+        self,
+        num_slabs: int,
+        sf_shape: Tuple[int, int],
+        velo_sf: bool = False,
+        cheby_points: bool = False,
     ) -> npt.NDArray[np.float64]:
         ref_x_coords = np.linspace(0, 1, sf_shape[0] + 1)
         ref_y_coords = np.linspace(0, 1, sf_shape[1] + 1)
+        if cheby_points:
+            ref_x_coords = get_cheby_points(0, 1, sf_shape[0])
+            ref_y_coords = get_cheby_points(0, 1, sf_shape[1])
         if velo_sf:
             ref_y_coords = np.delete(ref_y_coords, [-1, 0])
         phy_dof_coords = np.zeros(
