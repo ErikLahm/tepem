@@ -23,11 +23,12 @@ from backend.visualizer import solution_visualizer
 # from backend.shape_functions.q_1_4_sf import Q14_GRAD_SF_LIST
 
 
-NU = 1000
+NU = 100
 PRESSURE_GRAD = -2.5
 C_CONST = 1 / 2 * 1 / NU * (-PRESSURE_GRAD)
 RADIUS = 0.1
-LENGTH = 1
+LENGTH = 10
+ANGLE = 12
 
 
 def g_1(x_1: float, x_2: float) -> float:
@@ -58,8 +59,8 @@ def main() -> None:
     # )
     dom = Domain(
         LENGTH,
-        upper_bdn=lambda x: angle_to_gradient(8) * x + RADIUS,
-        lower_bdn=lambda x: -angle_to_gradient(8) * x - RADIUS,
+        upper_bdn=lambda x: angle_to_gradient(ANGLE) * x + RADIUS,
+        lower_bdn=lambda x: -angle_to_gradient(ANGLE) * x - RADIUS,
     )
     dom_coords, dom_ltg = dom.slice_domain(num_slabs)
     phys_coords = dom.get_phy_dof_coords(
@@ -120,12 +121,19 @@ def main() -> None:
     num_velo_dof = (VELO_SHAPE[0] * num_slabs + 1) * (VELO_SHAPE[1] + 1)
     if VELO_PARTIAL:
         num_velo_dof = (VELO_SHAPE[0] * num_slabs + 1) * (VELO_SHAPE[1] - 1)
+    info = {
+        "velo_sf": VELO_SHAPE,
+        "pres_sf": PRESSURE_SHAPE,
+        "num_slabs": num_slabs,
+        "angle": ANGLE,
+    }
     fig_sol, ax_sol = solution_visualizer(
         solution=solution,
         num_vel_dof=num_velo_dof,
         velo_coords=phys_coords,
         pres_coords=phys_pre_coords,
         pres_shape=PRESSURE_SHAPE,
+        info=info,
     )
     # fig_sol.savefig(
     #     f"tepem/exports/solution_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.png",

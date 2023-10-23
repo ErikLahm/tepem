@@ -11,6 +11,7 @@ def solution_visualizer(
     velo_coords: npt.NDArray[np.float64],
     pres_coords: npt.NDArray[np.float64],
     pres_shape: Tuple[int, int],
+    info: dict[str, str]
     # num_slabs: int,
 ):
     u_x = solution[:num_vel_dof]
@@ -24,10 +25,12 @@ def solution_visualizer(
         u_x,
         u_y,
         arrow_lengths,
-        # scale=0.5,
-        # width=0.01,
-        # headlength=3,
-        # headaxislength=3,
+        scale=0.0025,
+        scale_units="width",
+        units="width",
+        width=0.0025,
+        headlength=3,
+        headaxislength=3,
         # cmap="Greys",
     )
     ax[0].grid(True)  # type: ignore
@@ -52,4 +55,11 @@ def solution_visualizer(
     ax[0].set_xlabel("legth in x-direction")
     ax[1].grid(True)
     ax[1].legend()
+    text = (
+        f'velocity shape function: $\mathbb{{Q}}_{{{info["velo_sf"][0]},{info["velo_sf"][1]}}}$\n'
+        f'pressure shape function: $\mathbb{{Q}}_{{{info["pres_sf"][0]},{info["pres_sf"][1]}}}$\n'
+        f'number of slabs: $n={info["num_slabs"]}$\n'
+        f'opening angle domain: $\\alpha={info["angle"]}\\degree$\n'
+    )
+    plt.figtext(0.8, 0.9, text)
     return fig, ax
