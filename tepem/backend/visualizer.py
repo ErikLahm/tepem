@@ -1,16 +1,18 @@
 from typing import Tuple
 
 import matplotlib.pyplot as plt
+import matplotlib.tri as tri
 import numpy as np
 import numpy.typing as npt
 
 
-def solution_visualizer(
+def solution_visualizer(  # type: ignore
     solution: npt.NDArray[np.float64],
     num_vel_dof: int,
     velo_coords: npt.NDArray[np.float64],
     pres_coords: npt.NDArray[np.float64],
     pres_shape: Tuple[int, int],
+    info: dict[str, str]
     # num_slabs: int,
 ):
     u_x = solution[:num_vel_dof]
@@ -24,10 +26,12 @@ def solution_visualizer(
         u_x,
         u_y,
         arrow_lengths,
-        # scale=0.5,
-        # width=0.01,
-        # headlength=3,
-        # headaxislength=3,
+        scale=0.0025,
+        scale_units="width",
+        units="width",
+        width=0.0025,
+        headlength=3,
+        headaxislength=3,
         # cmap="Greys",
     )
     ax[0].grid(True)  # type: ignore
@@ -52,4 +56,56 @@ def solution_visualizer(
     ax[0].set_xlabel("legth in x-direction")
     ax[1].grid(True)
     ax[1].legend()
+    text = (
+        f'velocity shape function: $\\mathbb{{Q}}_{{{info["velo_sf"][0]},{info["velo_sf"][1]}}}$\n'
+        f'pressure shape function: $\\mathbb{{Q}}_{{{info["pres_sf"][0]},{info["pres_sf"][1]}}}$\n'
+        f'number of slabs: $n={info["num_slabs"]}$\n'
+        f'opening angle domain: $\\alpha={info["angle"]}\\degree$\n'
+    )
+    plt.figtext(0.8, 0.9, text)  # type: ignore
+    return fig, ax  # type: ignore
+
+
+def plot_velo_pres_sol(
+    p_sol: npt.NDArray[np.float64],
+    x_p: npt.NDArray[np.float64],
+    y_p: npt.NDArray[np.float64],
+    u_x: npt.NDArray[np.float64],
+    u_y: npt.NDArray[np.float64],
+    x_u: npt.NDArray[np.float64],
+    y_u: npt.NDArray[np.float64],
+):
+    fig, ax = plt.subplots()  # type: ignore
+    triang = tri.Triangulation(x_p, y_p)
+    # ax.triplot(triang, "bo-", lw=0.2)
+    # plot only triangles with sidelength smaller some max_radius
+    max_radius = 0.1
+    triangles = triang.triangles
+
+    # Mask off unwanted triangles.
+    xtri = x_p[triangles] - np.roll(x_p[triangles], 1, axis=1)
+    ytri = y_p[triangles] - np.roll(y_p[triangles], 1, axis=1)
+    maxi = np.max(np.sqrt(xtri**2 + ytri**2), axis=1)
+    triang.set_mask(maxi > max_radius)
+
+    # ax.triplot(triang, color="indigo", lw=2.6)
+    ax.tricontour(triang, p_sol, levels=25, linewidths=0.5, colors="k")  # type: ignore
+    c_data = ax.tricontourf(triang, p_sol, levels=50, cmap="RdBu_r")  # type: ignore
+    fig.colorbar(c_data)  # type: ignore
+    # ax.plot(x_p, y_p, "ko")
+    arrow_lengths = np.sqrt(u_x**2 + u_y**2)
+    pc = ax.quiver(  # type: ignore
+        x_u,
+        y_u,
+        u_x,
+        u_y,
+        arrow_lengths,
+        # scale=0.0025,
+        # scale_units="width",
+        # units="width",
+        # width=0.0025,
+        # headlength=3,
+        # headaxislength=3,
+        cmap="Greys",
+    )
     return fig, ax
