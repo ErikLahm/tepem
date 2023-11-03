@@ -1,8 +1,11 @@
+import datetime
+
 import matplotlib.pyplot as plt
 import numpy as np
 from backend.assembling import add_inital_penalty, assemble_g, assemble_n, assemble_rhs
 from backend.domain import Domain
 from backend.expected_solutions import EX_SOL, EX_SOL_q16
+from backend.high_res_mapping import get_high_res_phys_coords, get_high_res_solution
 from backend.ltg_generator import generate_ltg
 from backend.mapping import Mapping
 from backend.shape_functions.q_1_2_sf import Q12_GRAD_SF_LIST, Q12_SF_LIST
@@ -13,12 +16,15 @@ from backend.shape_functions.q_1_6_velo_sf import Q16_GRAD_SF_LIST
 from backend.shape_functions.q_1_7_velo_sf import Q17_GRAD_SF_LIST
 from backend.shape_functions.q_2_4_velo_sf import Q24_GRAD_SF_LIST
 from backend.shape_functions.q_2_4_velo_sf_cheb import Q24_GRAD_SF_CHEB_LIST
-from backend.shape_functions.q_2_5_velo_sf import Q25_GRAD_SF_LIST
-from backend.shape_functions.q_2_5_velo_sf_cheb import Q25_GRAD_SF_CHEB_LIST
+from backend.shape_functions.q_2_5_velo_sf import Q25_GRAD_SF_LIST, Q25_SF_LIST
+from backend.shape_functions.q_2_5_velo_sf_cheb import (
+    Q25_GRAD_SF_CHEB_LIST,
+    Q25_SF_CHEB_LIST,
+)
 from backend.shape_functions.q_2_6_velo_sf import Q26_GRAD_SF_LIST
 from backend.shape_functions.q_2_sf import Q2_SF_LIST
 from backend.shape_functions.q_3_4_velo_sf import Q34_GRAD_SF_LIST
-from backend.visualizer import solution_visualizer
+from backend.visualizer import plot_velo_pres_sol, solution_visualizer
 
 # from backend.shape_functions.q_1_4_sf import Q14_GRAD_SF_LIST
 
@@ -27,8 +33,8 @@ NU = 100
 PRESSURE_GRAD = -2.5
 C_CONST = 1 / 2 * 1 / NU * (-PRESSURE_GRAD)
 RADIUS = 0.1
-LENGTH = 10
-ANGLE = 12
+LENGTH = 4
+ANGLE = 0
 
 
 def g_1(x_1: float, x_2: float) -> float:
@@ -36,6 +42,30 @@ def g_1(x_1: float, x_2: float) -> float:
         return C_CONST * (RADIUS - x_2) * (x_2 + RADIUS)
     else:
         return 0
+
+
+def upper_joint_out_bdn(x: float) -> float:
+    if x < 1:
+        return RADIUS
+    if x >= 1 and x <= 5:
+        return -1 / 50 * ((x - 3) ** 2) + 4 * 1 / 50 + RADIUS
+    return RADIUS
+
+
+def upper_joint_in_bdn(x: float) -> float:
+    if x < 1:
+        return RADIUS
+    if x >= 1 and x <= 5:
+        return 1 / 30 * ((x - 3) ** 2) - 4 * 1 / 30 + RADIUS
+    return RADIUS
+
+
+def lower_joint_out_bdn(x: float) -> float:
+    if x < 1:
+        return -RADIUS
+    if x >= 1 and x <= 5:
+        return 1 / 50 * ((x - 3) ** 2) - 4 * 1 / 50 - RADIUS
+    return -RADIUS
 
 
 def angle_to_gradient(angle: float) -> float:
@@ -53,14 +83,14 @@ VELO_PARTIAL = True
 
 
 def main() -> None:
-    num_slabs = 50
-    # dom = Domain(
-    #     LENGTH, upper_bdn=lambda x: x**2 / 10 + 0.2, lower_bdn=lambda x: -0.2
-    # )
+    num_slabs = 10
     dom = Domain(
         LENGTH,
-        upper_bdn=lambda x: angle_to_gradient(ANGLE) * x + RADIUS,
+        # upper_bdn=lambda x: angle_to_gradient(ANGLE) * x + RADIUS,
         lower_bdn=lambda x: -angle_to_gradient(ANGLE) * x - RADIUS,
+        upper_bdn=upper_joint_out_bdn,
+        # lower_bdn=lower_joint_out_bdn,
+        # upper_bdn=upper_joint_in_bdn,
     )
     dom_coords, dom_ltg = dom.slice_domain(num_slabs)
     phys_coords = dom.get_phy_dof_coords(
@@ -121,6 +151,32 @@ def main() -> None:
     num_velo_dof = (VELO_SHAPE[0] * num_slabs + 1) * (VELO_SHAPE[1] + 1)
     if VELO_PARTIAL:
         num_velo_dof = (VELO_SHAPE[0] * num_slabs + 1) * (VELO_SHAPE[1] - 1)
+    high_res_u, xv, yv = get_high_res_solution(
+        solution_coeff=solution[:num_velo_dof],
+        coef_ltg=velo_ltg,
+        x_res=2,
+        y_res=40,
+        shape_funcs=Q25_SF_LIST,
+    )
+    high_res_v, _, _ = get_high_res_solution(
+        solution_coeff=solution[num_velo_dof : 2 * num_velo_dof],
+        coef_ltg=velo_ltg,
+        x_res=2,
+        y_res=40,
+        shape_funcs=Q25_SF_CHEB_LIST,
+    )
+    high_res_p, x_p, y_p = get_high_res_solution(
+        solution_coeff=solution[2 * num_velo_dof :],
+        coef_ltg=pres_ltg,
+        x_res=20,
+        y_res=80,
+        shape_funcs=Q12_SF_LIST,
+    )
+    x_hr_p, y_hr_p = get_high_res_phys_coords(x_p, y_p, dom_coords, dom_ltg)
+    x_hr_u, y_hr_u = get_high_res_phys_coords(xv, yv, dom_coords, dom_ltg)
+    plot_velo_pres_sol(
+        high_res_p, x_hr_p, y_hr_p, high_res_u, high_res_v, x_hr_u, y_hr_u
+    )
     info = {
         "velo_sf": VELO_SHAPE,
         "pres_sf": PRESSURE_SHAPE,
@@ -136,7 +192,7 @@ def main() -> None:
         info=info,
     )
     # fig_sol.savefig(
-    #     f"tepem/exports/solution_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.png",
+    #     f"tepem/exports/solution_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}_{ANGLE}deg_n{num_slabs}_{datetime.datetime.now()}.png",
     #     dpi=300,
     # )
     # ----------------------------------------
@@ -150,28 +206,28 @@ def main() -> None:
     # )
     # residue = rhs - ex_rhs
     # diff_solution = abs(solution - EX_SOL)
-    schur = np.dot(np.dot(d_matrix, np.linalg.inv(n_matrix)), g_matrix)
-    s, v, dh = np.linalg.svd(schur)
-    rank_schur = np.linalg.matrix_rank(schur)
+    # schur = np.dot(np.dot(d_matrix, np.linalg.inv(n_matrix)), g_matrix)
+    # s, v, dh = np.linalg.svd(schur)
+    # rank_schur = np.linalg.matrix_rank(schur)
     # -----------------------------------------
     # map_k = Mapping(slab_coord=dom_coords[dom_ltg[0]])
     # ref_x, ref_y = 0, 0
     # p_x, p_y = map_k.slab_map(ref_x, ref_y)
-    # fig, ax = dom.visualise_domain(coords=dom_coords, ltg=dom_ltg)  # type: ignore
+    fig, ax = dom.visualise_domain(coords=dom_coords, ltg=dom_ltg)  # type: ignore
     # ax.scatter(p_x, p_y, c="red", marker="+", label=f"test mapping in slab 4:\n $x_{{ref}}=${ref_x}, $y_{{ref}}=${ref_y}")  # type: ignore
-    # ax.scatter(phys_coords[:, 0], phys_coords[:, 1], c="green", label="velocity dof")
-    # ax.scatter(
-    #     phys_pre_coords[:, 0],
-    #     phys_pre_coords[:, 1],
-    #     facecolors="none",
-    #     edgecolors="b",
-    #     label="pressure dof",
-    # )
-    # for i, coords in enumerate(phys_coords):
-    #     ax.annotate(str(i), (coords[0], coords[1]))
-    # ax.set_ylabel("radius in y-direction")
-    # ax.set_xlabel("legth in x-direction")
-    # ax.legend()
+    ax.scatter(phys_coords[:, 0], phys_coords[:, 1], c="green", label="velocity dof")
+    ax.scatter(
+        phys_pre_coords[:, 0],
+        phys_pre_coords[:, 1],
+        facecolors="none",
+        edgecolors="b",
+        label="pressure dof",
+    )
+    for i, coords in enumerate(phys_coords):
+        ax.annotate(str(i), (coords[0], coords[1]))
+    ax.set_ylabel("radius in y-direction")
+    ax.set_xlabel("legth in x-direction")
+    ax.legend()
     # fig.savefig(
     #     f"tepem/exports/domain_q{VELO_SHAPE[0]}{VELO_SHAPE[1]}_q{PRESSURE_SHAPE[0]}{PRESSURE_SHAPE[1]}.png",
     #     dpi=300,
