@@ -1,8 +1,16 @@
 import datetime
+from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 from backend.assembling import add_inital_penalty, assemble_g, assemble_n, assemble_rhs
+from backend.curve_shapes.boundary_shapes import linear_boundary
+from backend.curve_shapes.curves import (
+    curved_upward,
+    curved_upward_normal,
+    straight_curve,
+    straight_curve_normal,
+)
 from backend.domain import Domain
 from backend.expected_solutions import EX_SOL, EX_SOL_q16
 from backend.high_res_mapping import get_high_res_phys_coords, get_high_res_solution
@@ -33,8 +41,45 @@ NU = 100
 PRESSURE_GRAD = -2.5
 C_CONST = 1 / 2 * 1 / NU * (-PRESSURE_GRAD)
 RADIUS = 0.1
-LENGTH = 4
+LENGTH = 1
 ANGLE = 0
+CURVE_ANGLE = 0.5
+
+
+def straight_upper(s: float) -> Tuple[float, float]:
+    x = (
+        straight_curve(s, CURVE_ANGLE)[0]
+        + linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[0]
+    )
+    y = (
+        straight_curve(s, CURVE_ANGLE)[1]
+        + linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[1]
+    )
+    return x, y
+
+
+def straight_lower(s: float) -> Tuple[float, float]:
+    x = (
+        straight_curve(s, CURVE_ANGLE)[0]
+        - linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[0]
+    )
+    y = (
+        straight_curve(s, CURVE_ANGLE)[1]
+        - linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[1]
+    )
+    return x, y
+
+
+def curved_upper(s: float) -> Tuple[float, float]:
+    x = curved_upward(s)[0] + linear_boundary(s) * curved_upward_normal(s)[0]
+    y = curved_upward(s)[1] + linear_boundary(s) * curved_upward_normal(s)[1]
+    return x, y
+
+
+def curved_lower(s: float) -> Tuple[float, float]:
+    x = curved_upward(s)[0] - linear_boundary(s) * curved_upward_normal(s)[0]
+    y = curved_upward(s)[1] - linear_boundary(s) * curved_upward_normal(s)[1]
+    return x, y
 
 
 def g_1(x_1: float, x_2: float) -> float:
@@ -44,28 +89,28 @@ def g_1(x_1: float, x_2: float) -> float:
         return 0
 
 
-def upper_joint_out_bdn(x: float) -> float:
-    if x < 1:
-        return RADIUS
-    if x >= 1 and x <= 5:
-        return -1 / 50 * ((x - 3) ** 2) + 4 * 1 / 50 + RADIUS
-    return RADIUS
+# def upper_joint_out_bdn(x: float) -> float:
+#     if x < 1:
+#         return RADIUS
+#     if x >= 1 and x <= 5:
+#         return -1 / 50 * ((x - 3) ** 2) + 4 * 1 / 50 + RADIUS
+#     return RADIUS
 
 
-def upper_joint_in_bdn(x: float) -> float:
-    if x < 1:
-        return RADIUS
-    if x >= 1 and x <= 5:
-        return 1 / 30 * ((x - 3) ** 2) - 4 * 1 / 30 + RADIUS
-    return RADIUS
+# def upper_joint_in_bdn(x: float) -> float:
+#     if x < 1:
+#         return RADIUS
+#     if x >= 1 and x <= 5:
+#         return 1 / 30 * ((x - 3) ** 2) - 4 * 1 / 30 + RADIUS
+#     return RADIUS
 
 
-def lower_joint_out_bdn(x: float) -> float:
-    if x < 1:
-        return -RADIUS
-    if x >= 1 and x <= 5:
-        return 1 / 50 * ((x - 3) ** 2) - 4 * 1 / 50 - RADIUS
-    return -RADIUS
+# def lower_joint_out_bdn(x: float) -> float:
+#     if x < 1:
+#         return -RADIUS
+#     if x >= 1 and x <= 5:
+#         return 1 / 50 * ((x - 3) ** 2) - 4 * 1 / 50 - RADIUS
+#     return -RADIUS
 
 
 def angle_to_gradient(angle: float) -> float:
@@ -86,9 +131,13 @@ def main() -> None:
     num_slabs = 10
     dom = Domain(
         LENGTH,
+        # upper_bdn=straight_upper,
+        # lower_bdn=straight_lower,
+        upper_bdn=curved_upper,
+        lower_bdn=curved_lower,
         # upper_bdn=lambda x: angle_to_gradient(ANGLE) * x + RADIUS,
-        lower_bdn=lambda x: -angle_to_gradient(ANGLE) * x - RADIUS,
-        upper_bdn=upper_joint_out_bdn,
+        # lower_bdn=lambda x: -angle_to_gradient(ANGLE) * x - RADIUS,
+        # upper_bdn=upper_joint_out_bdn,
         # lower_bdn=lower_joint_out_bdn,
         # upper_bdn=upper_joint_in_bdn,
     )

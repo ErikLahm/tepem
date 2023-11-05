@@ -31,8 +31,8 @@ def map_11_to_ab(x: float, a: float, b: float) -> float:
 @dataclass
 class Domain:
     length: float
-    upper_bdn: Callable[[float], float]
-    lower_bdn: Callable[[float], float]
+    upper_bdn: Callable[[float], Tuple[float, float]]
+    lower_bdn: Callable[[float], Tuple[float, float]]
 
     def slice_domain(
         self, num_slices: int
@@ -56,11 +56,20 @@ class Domain:
             that belong to the slab.
         """
 
-        x_coords = np.linspace(0, self.length, 2 * num_slices + 1)
-        upper_y = np.array([self.upper_bdn(x_coord) for x_coord in x_coords])
-        lower_y = np.array([self.lower_bdn(x_coord) for x_coord in x_coords])
-        upper_coords = np.vstack((x_coords, upper_y)).T
-        lower_coords = np.vstack((x_coords, lower_y)).T
+        # x_coords = np.linspace(0, self.length, 2 * num_slices + 1)
+        # upper_y = np.array([self.upper_bdn(x_coord) for x_coord in x_coords])
+        # lower_y = np.array([self.lower_bdn(x_coord) for x_coord in x_coords])
+        # upper_coords = np.vstack((x_coords, upper_y)).T
+        # lower_coords = np.vstack((x_coords, lower_y)).T
+        # all_coords = np.vstack((lower_coords, upper_coords))
+
+        dx = np.linspace(0, self.length, 2 * num_slices + 1)
+        upper_coords = np.array(
+            [self.upper_bdn(slice_coord) for slice_coord in dx], dtype=np.float64
+        )
+        lower_coords = np.array(
+            [self.lower_bdn(slice_coord) for slice_coord in dx], dtype=np.float64
+        )
         all_coords = np.vstack((lower_coords, upper_coords))
 
         ltg_lower = np.arange(2 * num_slices + 1)
@@ -106,14 +115,24 @@ class Domain:
         self, coords: npt.NDArray[np.float64], ltg: npt.NDArray[np.int32]
     ) -> Tuple[Figure, Axes]:
         fig, ax = plt.subplots(figsize=(15, 10))  # type: ignore
-        x_coords = np.linspace(0, self.length, 500)
-        upper_y = np.array([self.upper_bdn(x_coord) for x_coord in x_coords])
-        lower_y = np.array([self.lower_bdn(x_coord) for x_coord in x_coords])
-        ax.plot(x_coords, upper_y, "grey")  # type: ignore
-        ax.plot(x_coords, lower_y, "grey")  # type: ignore
+        dx = np.linspace(0, self.length, 500)
+        upper_coords = np.array([self.upper_bdn(point) for point in dx])
+        lower_coords = np.array([self.lower_bdn(point) for point in dx])
+        ax.plot(upper_coords[:, 0], upper_coords[:, 1], "grey")  # type: ignore
+        ax.plot(lower_coords[:, 0], lower_coords[:, 1], "grey")  # type: ignore
         for slab in ltg:
-            ax.vlines(coords[slab[0]][0], coords[slab[0]][1], coords[slab[3]][1], colors="grey", linestyles="dashdot")  # type: ignore
-            ax.vlines(coords[slab[2]][0], coords[slab[2]][1], coords[slab[5]][1], colors="grey", linestyles="dashdot")  # type: ignore
+            ax.plot(  # type: ignore
+                [coords[slab[0]][0], coords[slab[3]][0]],
+                [coords[slab[0]][1], coords[slab[3]][1]],
+                color="grey",
+                linestyle="dashdot",
+            )
+            ax.plot(  # type: ignore
+                [coords[slab[2]][0], coords[slab[5]][0]],
+                [coords[slab[2]][1], coords[slab[5]][1]],
+                color="grey",
+                linestyle="dashdot",
+            )
         ax.scatter(coords[:, 0], coords[:, 1], c="grey", marker=".")  # type: ignore
         # plt.show()  # type: ignore
         return fig, ax
