@@ -37,13 +37,24 @@ from backend.visualizer import plot_velo_pres_sol, solution_visualizer
 # from backend.shape_functions.q_1_4_sf import Q14_GRAD_SF_LIST
 
 
-NU = 100
-PRESSURE_GRAD = -2.5
-C_CONST = 1 / 2 * 1 / NU * (-PRESSURE_GRAD)
-RADIUS = 0.1
-LENGTH = 1
-ANGLE = 0
-CURVE_ANGLE = 0.5
+NU = 8.1e-2  # [Pa * s]
+# PRESSURE_GRAD = -2.5
+# C_CONST = 1 / 2 * 1 / NU * (-PRESSURE_GRAD)
+RADIUS = 0.0125  # [m]
+LENGTH = 0.11  # [m]
+LENGTH_STR_INLET = 0.01  # [m]
+ANGLE = -5  # [°]
+CURVE_ANGLE = 0
+VOLUME_FLUX = 1e-3  # [m^3/(m^2*s) = m/s]
+
+
+def get_constant(mass_flow: float) -> float:
+    return mass_flow / (
+        (RADIUS**2 * (2 * RADIUS) - 1 / 3 * (RADIUS**3 - (-RADIUS) ** 3))
+    )
+
+
+C_CONST = get_constant(1e-3)
 
 
 def straight_upper(s: float) -> Tuple[float, float]:
@@ -70,16 +81,76 @@ def straight_lower(s: float) -> Tuple[float, float]:
     return x, y
 
 
-def curved_upper(s: float) -> Tuple[float, float]:
-    x = curved_upward(s)[0] + linear_boundary(s) * curved_upward_normal(s)[0]
-    y = curved_upward(s)[1] + linear_boundary(s) * curved_upward_normal(s)[1]
+def straight_conv_upper(s: float) -> Tuple[float, float]:
+    if s <= LENGTH_STR_INLET:
+        x = (
+            straight_curve(s, CURVE_ANGLE)[0]
+            + linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[0]
+        )
+        y = (
+            straight_curve(s, CURVE_ANGLE)[1]
+            + linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[1]
+        )
+    else:
+        x = (
+            straight_curve(s, CURVE_ANGLE)[0]
+            + (
+                linear_boundary(s, m=angle_to_gradient(ANGLE))
+                - LENGTH_STR_INLET * angle_to_gradient(ANGLE)
+            )
+            * straight_curve_normal(s, CURVE_ANGLE)[0]
+        )
+        y = (
+            straight_curve(s, CURVE_ANGLE)[1]
+            + (
+                linear_boundary(s, m=angle_to_gradient(ANGLE))
+                - LENGTH_STR_INLET * angle_to_gradient(ANGLE)
+            )
+            * straight_curve_normal(s, CURVE_ANGLE)[1]
+        )
     return x, y
 
 
-def curved_lower(s: float) -> Tuple[float, float]:
-    x = curved_upward(s)[0] - linear_boundary(s) * curved_upward_normal(s)[0]
-    y = curved_upward(s)[1] - linear_boundary(s) * curved_upward_normal(s)[1]
+def straight_conv_lower(s: float) -> Tuple[float, float]:
+    if s <= LENGTH_STR_INLET:
+        x = (
+            straight_curve(s, CURVE_ANGLE)[0]
+            - linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[0]
+        )
+        y = (
+            straight_curve(s, CURVE_ANGLE)[1]
+            - linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[1]
+        )
+    else:
+        x = (
+            straight_curve(s, CURVE_ANGLE)[0]
+            - (
+                linear_boundary(s, m=angle_to_gradient(ANGLE))
+                - LENGTH_STR_INLET * angle_to_gradient(ANGLE)
+            )
+            * straight_curve_normal(s, CURVE_ANGLE)[0]
+        )
+        y = (
+            straight_curve(s, CURVE_ANGLE)[1]
+            - (
+                linear_boundary(s, m=angle_to_gradient(ANGLE))
+                - LENGTH_STR_INLET * angle_to_gradient(ANGLE)
+            )
+            * straight_curve_normal(s, CURVE_ANGLE)[1]
+        )
     return x, y
+
+
+# def curved_upper(s: float) -> Tuple[float, float]:
+#     x = curved_upward(s)[0] + linear_boundary(s) * curved_upward_normal(s)[0]
+#     y = curved_upward(s)[1] + linear_boundary(s) * curved_upward_normal(s)[1]
+#     return x, y
+
+
+# def curved_lower(s: float) -> Tuple[float, float]:
+#     x = curved_upward(s)[0] - linear_boundary(s) * curved_upward_normal(s)[0]
+#     y = curved_upward(s)[1] - linear_boundary(s) * curved_upward_normal(s)[1]
+#     return x, y
 
 
 def g_1(x_1: float, x_2: float) -> float:
@@ -128,13 +199,15 @@ VELO_PARTIAL = True
 
 
 def main() -> None:
-    num_slabs = 10
+    num_slabs = 25
     dom = Domain(
         LENGTH,
         # upper_bdn=straight_upper,
         # lower_bdn=straight_lower,
-        upper_bdn=curved_upper,
-        lower_bdn=curved_lower,
+        upper_bdn=straight_conv_upper,
+        lower_bdn=straight_conv_lower,
+        # upper_bdn=curved_upper,
+        # lower_bdn=curved_lower,
         # upper_bdn=lambda x: angle_to_gradient(ANGLE) * x + RADIUS,
         # lower_bdn=lambda x: -angle_to_gradient(ANGLE) * x - RADIUS,
         # upper_bdn=upper_joint_out_bdn,
