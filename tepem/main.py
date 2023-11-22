@@ -4,8 +4,10 @@ from typing import Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 from backend.assembling import add_inital_penalty, assemble_g, assemble_n, assemble_rhs
-from backend.curve_shapes.boundary_shapes import linear_boundary
+from backend.curve_shapes.boundary_shapes import linear_boundary, sudden_linear
 from backend.curve_shapes.curves import (
+    cos_curve,
+    cos_curve_normal,
     curved_upward,
     curved_upward_normal,
     straight_curve,
@@ -17,7 +19,7 @@ from backend.high_res_mapping import get_high_res_phys_coords, get_high_res_solu
 from backend.ltg_generator import generate_ltg
 from backend.mapping import Mapping
 from backend.shape_functions.q_1_2_sf import Q12_GRAD_SF_LIST, Q12_SF_LIST
-from backend.shape_functions.q_1_3_sf import Q13_GRAD_SF_LIST
+from backend.shape_functions.q_1_3_sf import Q13_GRAD_SF_LIST, Q13_SF_LIST
 from backend.shape_functions.q_1_4_velo_sf import Q14_GRAD_SF_LIST
 from backend.shape_functions.q_1_5_velo_sf import Q15_GRAD_SF_LIST
 from backend.shape_functions.q_1_6_velo_sf import Q16_GRAD_SF_LIST
@@ -29,7 +31,11 @@ from backend.shape_functions.q_2_5_velo_sf_cheb import (
     Q25_GRAD_SF_CHEB_LIST,
     Q25_SF_CHEB_LIST,
 )
-from backend.shape_functions.q_2_6_velo_sf import Q26_GRAD_SF_LIST
+from backend.shape_functions.q_2_6_velo_cheb import (
+    Q26_GRAD_SF_CHEB_LIST,
+    Q26_SF_CHEB_LIST,
+)
+from backend.shape_functions.q_2_6_velo_sf import Q26_GRAD_SF_LIST, Q26_SF_LIST
 from backend.shape_functions.q_2_sf import Q2_SF_LIST
 from backend.shape_functions.q_3_4_velo_sf import Q34_GRAD_SF_LIST
 from backend.visualizer import plot_velo_pres_sol, solution_visualizer
@@ -41,8 +47,9 @@ NU = 8.1e-2  # [Pa * s]
 # PRESSURE_GRAD = -2.5
 # C_CONST = 1 / 2 * 1 / NU * (-PRESSURE_GRAD)
 RADIUS = 0.0125  # [m]
-LENGTH = 0.11  # [m]
+LENGTH = 0.12  # [m]
 LENGTH_STR_INLET = 0.01  # [m]
+START_STR_OUTLET = 0.11
 ANGLE = -5  # [°]
 CURVE_ANGLE = 0
 VOLUME_FLUX = 1e-3  # [m^3/(m^2*s) = m/s]
@@ -54,7 +61,7 @@ def get_constant(mass_flow: float) -> float:
     )
 
 
-C_CONST = get_constant(1e-3)
+C_CONST = get_constant(VOLUME_FLUX)
 
 
 def straight_upper(s: float) -> Tuple[float, float]:
@@ -91,7 +98,7 @@ def straight_conv_upper(s: float) -> Tuple[float, float]:
             straight_curve(s, CURVE_ANGLE)[1]
             + linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[1]
         )
-    else:
+    elif s > LENGTH_STR_INLET and s <= START_STR_OUTLET:
         x = (
             straight_curve(s, CURVE_ANGLE)[0]
             + (
@@ -107,6 +114,17 @@ def straight_conv_upper(s: float) -> Tuple[float, float]:
                 - LENGTH_STR_INLET * angle_to_gradient(ANGLE)
             )
             * straight_curve_normal(s, CURVE_ANGLE)[1]
+        )
+    else:
+        n_decl = RADIUS - angle_to_gradient(ANGLE) * LENGTH_STR_INLET
+        n_out = angle_to_gradient(ANGLE) * START_STR_OUTLET + n_decl
+        x = (
+            straight_curve(s, CURVE_ANGLE)[0]
+            + linear_boundary(s, n=n_out) * straight_curve_normal(s, CURVE_ANGLE)[0]
+        )
+        y = (
+            straight_curve(s, CURVE_ANGLE)[1]
+            + linear_boundary(s, n=n_out) * straight_curve_normal(s, CURVE_ANGLE)[1]
         )
     return x, y
 
@@ -121,7 +139,7 @@ def straight_conv_lower(s: float) -> Tuple[float, float]:
             straight_curve(s, CURVE_ANGLE)[1]
             - linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[1]
         )
-    else:
+    elif s > LENGTH_STR_INLET and s <= START_STR_OUTLET:
         x = (
             straight_curve(s, CURVE_ANGLE)[0]
             - (
@@ -138,6 +156,103 @@ def straight_conv_lower(s: float) -> Tuple[float, float]:
             )
             * straight_curve_normal(s, CURVE_ANGLE)[1]
         )
+    else:
+        n_decl = RADIUS - angle_to_gradient(ANGLE) * LENGTH_STR_INLET
+        n_out = angle_to_gradient(ANGLE) * START_STR_OUTLET + n_decl
+        x = (
+            straight_curve(s, CURVE_ANGLE)[0]
+            - linear_boundary(s, n=n_out) * straight_curve_normal(s, CURVE_ANGLE)[0]
+        )
+        y = (
+            straight_curve(s, CURVE_ANGLE)[1]
+            - linear_boundary(s, n=n_out) * straight_curve_normal(s, CURVE_ANGLE)[1]
+        )
+    return x, y
+
+
+def cos_upper(s: float) -> Tuple[float, float]:
+    if s <= LENGTH_STR_INLET:
+        x = (
+            straight_curve(s, CURVE_ANGLE)[0]
+            + linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[0]
+        )
+        y = (
+            straight_curve(s, CURVE_ANGLE)[1]
+            + linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[1]
+        )
+    elif s <= START_STR_OUTLET:
+        x = (
+            cos_curve(s, LENGTH_STR_INLET)[0]
+            + linear_boundary(s) * cos_curve_normal(s, LENGTH_STR_INLET)[0]
+        )
+        y = (
+            cos_curve(s, LENGTH_STR_INLET)[1]
+            + linear_boundary(s) * cos_curve_normal(s, LENGTH_STR_INLET)[1]
+        )
+    else:
+        x = (
+            straight_curve(s, CURVE_ANGLE)[0]
+            + linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[0]
+        )
+        y = (
+            straight_curve(s, CURVE_ANGLE)[1]
+            + linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[1]
+        )
+    return x, y
+
+
+def cos_lower(s: float) -> Tuple[float, float]:
+    if s <= LENGTH_STR_INLET:
+        x = (
+            straight_curve(s, CURVE_ANGLE)[0]
+            - linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[0]
+        )
+        y = (
+            straight_curve(s, CURVE_ANGLE)[1]
+            - linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[1]
+        )
+    elif s <= START_STR_OUTLET:
+        x = (
+            cos_curve(s, LENGTH_STR_INLET)[0]
+            - linear_boundary(s) * cos_curve_normal(s, LENGTH_STR_INLET)[0]
+        )
+        y = (
+            cos_curve(s, LENGTH_STR_INLET)[1]
+            - linear_boundary(s) * cos_curve_normal(s, LENGTH_STR_INLET)[1]
+        )
+    else:
+        x = (
+            straight_curve(s, CURVE_ANGLE)[0]
+            - linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[0]
+        )
+        y = (
+            straight_curve(s, CURVE_ANGLE)[1]
+            - linear_boundary(s) * straight_curve_normal(s, CURVE_ANGLE)[1]
+        )
+    return x, y
+
+
+def sudden_bdn_upper(s: float) -> Tuple[float, float]:
+    x = (
+        straight_curve(s, CURVE_ANGLE)[0]
+        + sudden_linear(s) * straight_curve_normal(s, CURVE_ANGLE)[0]
+    )
+    y = (
+        straight_curve(s, CURVE_ANGLE)[1]
+        + sudden_linear(s) * straight_curve_normal(s, CURVE_ANGLE)[1]
+    )
+    return x, y
+
+
+def sudden_bdn_lower(s: float) -> Tuple[float, float]:
+    x = (
+        straight_curve(s, CURVE_ANGLE)[0]
+        - sudden_linear(s) * straight_curve_normal(s, CURVE_ANGLE)[0]
+    )
+    y = (
+        straight_curve(s, CURVE_ANGLE)[1]
+        - sudden_linear(s) * straight_curve_normal(s, CURVE_ANGLE)[1]
+    )
     return x, y
 
 
@@ -193,19 +308,23 @@ def angle_to_radian(angle: float) -> float:
     return angle / 180 * np.pi
 
 
-VELO_SHAPE = (2, 5)
-PRESSURE_SHAPE = (1, 2)
+VELO_SHAPE = (2, 6)
+PRESSURE_SHAPE = (1, 3)
 VELO_PARTIAL = True
 
 
 def main() -> None:
-    num_slabs = 25
+    num_slabs = 150
     dom = Domain(
         LENGTH,
         # upper_bdn=straight_upper,
         # lower_bdn=straight_lower,
-        upper_bdn=straight_conv_upper,
-        lower_bdn=straight_conv_lower,
+        # upper_bdn=straight_conv_upper,
+        # lower_bdn=straight_conv_lower,
+        # upper_bdn=cos_upper,
+        # lower_bdn=cos_lower,
+        upper_bdn=sudden_bdn_upper,
+        lower_bdn=sudden_bdn_lower,
         # upper_bdn=curved_upper,
         # lower_bdn=curved_lower,
         # upper_bdn=lambda x: angle_to_gradient(ANGLE) * x + RADIUS,
@@ -227,7 +346,7 @@ def main() -> None:
     pres_ltg = generate_ltg(num_slabs=num_slabs, fe_order=PRESSURE_SHAPE)
     n_matrix = assemble_n(
         ref_ltg=velo_ltg,
-        grad_sfs=Q25_GRAD_SF_CHEB_LIST,
+        grad_sfs=Q26_GRAD_SF_CHEB_LIST,
         domain_coords=dom_coords,
         domain_ltg=dom_ltg,
         nu=NU,
@@ -241,8 +360,8 @@ def main() -> None:
     g_matrix = assemble_g(
         velo_ltg=velo_ltg,
         press_ltg=pres_ltg,
-        press_sfs=Q12_SF_LIST,
-        grad_vel_sfs=Q25_GRAD_SF_CHEB_LIST,
+        press_sfs=Q13_SF_LIST,
+        grad_vel_sfs=Q26_GRAD_SF_CHEB_LIST,
         domain_coords=dom_coords,
         domain_ltg=dom_ltg,
     )
@@ -278,21 +397,21 @@ def main() -> None:
         coef_ltg=velo_ltg,
         x_res=2,
         y_res=40,
-        shape_funcs=Q25_SF_LIST,
+        shape_funcs=Q26_SF_CHEB_LIST,
     )
     high_res_v, _, _ = get_high_res_solution(
         solution_coeff=solution[num_velo_dof : 2 * num_velo_dof],
         coef_ltg=velo_ltg,
         x_res=2,
         y_res=40,
-        shape_funcs=Q25_SF_CHEB_LIST,
+        shape_funcs=Q26_SF_CHEB_LIST,
     )
     high_res_p, x_p, y_p = get_high_res_solution(
         solution_coeff=solution[2 * num_velo_dof :],
         coef_ltg=pres_ltg,
-        x_res=20,
-        y_res=80,
-        shape_funcs=Q12_SF_LIST,
+        x_res=40,
+        y_res=120,
+        shape_funcs=Q13_SF_LIST,
     )
     x_hr_p, y_hr_p = get_high_res_phys_coords(x_p, y_p, dom_coords, dom_ltg)
     x_hr_u, y_hr_u = get_high_res_phys_coords(xv, yv, dom_coords, dom_ltg)

@@ -41,7 +41,8 @@ def solution_visualizer(  # type: ignore
     # xv, yv = np.meshgrid(x_pressure, y_pressure)
     linestyles = ["solid", "solid", "dashed", "dashdot"]
     labels = ["lower boundary", "middle of pipe", "upper boundary"]
-    colors = ["red", "grey", "yellow"]
+    labels = ["lower boundary", "lower middle", "upper middle", "upper boundary"]
+    colors = ["red", "grey", "yellow", "blue"]
     for i in range(pres_shape[1] + 1):
         ax[1].plot(
             x_pressure,
@@ -79,7 +80,7 @@ def plot_velo_pres_sol(
     triang = tri.Triangulation(x_p, y_p)
     # ax.triplot(triang, "bo-", lw=0.2)
     # plot only triangles with sidelength smaller some max_radius
-    max_radius = 0.1
+    max_radius = 0.001
     triangles = triang.triangles
 
     # Mask off unwanted triangles.

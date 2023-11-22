@@ -16,6 +16,24 @@ def straight_curve_normal(s: float, m: float = DEFAULT_GRAD) -> Tuple[float, flo
 # ------------------------------------------------------------------------------------------------
 
 
+def cos_curve(
+    s: float, hori_offset: float = 0, amplitude: float = 0.01
+) -> Tuple[float, float]:
+    return (s, amplitude * np.cos(2 * np.pi / 0.1 * (s - 0.01)) - amplitude)
+
+
+def cos_curve_normal(
+    s: float, hori_offset: float = 0, amplitude: float = 0.01
+) -> Tuple[float, float]:
+    x = 1
+    y = -2 * np.pi / 0.1 * amplitude * np.sin(2 * np.pi / 0.1 * (s - 0.01))
+    norm = np.sqrt(x**2 + y**2)
+    return (-y / norm, x / norm)
+
+
+# ------------------------------------------------------------------------------------------------
+
+
 def curved_upward(s: float, m: float = 1.0) -> Tuple[float, float]:
     if s < 0.5:
         return (s, s**2)
