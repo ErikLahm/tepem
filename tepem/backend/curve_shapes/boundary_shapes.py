@@ -9,7 +9,8 @@ def bulge(s: float, dom_length: float, init_radius: float, max_height: float):
             0.5 * (np.cos((s - 0.25 * dom_length) / (dom_length * 0.25) * np.pi) + 1.0),
             8,
         )
-        height = init_radius + (max_height - init_radius) * delta
+        # height = init_radius + (max_height - init_radius) * delta
+        height = init_radius + (max_height) * delta
     return height
 
 

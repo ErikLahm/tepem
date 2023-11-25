@@ -49,8 +49,24 @@ class WaveDomain:
                 * cos_curve_normal(s, self.length_str_inlet, period=self.period)[1]
             )
         else:
-            x = straight_curve(s)[0] + linear_boundary(s) * straight_curve_normal(s)[0]
-            y = straight_curve(s)[1] + linear_boundary(s) * straight_curve_normal(s)[1]
+            if self.gradient != 0:
+                x = (
+                    straight_curve(s)[0]
+                    + linear_boundary(s, n=0.0125 / 2) * straight_curve_normal(s)[0]
+                )
+                y = (
+                    straight_curve(s)[1]
+                    + linear_boundary(s, n=0.0125 / 2) * straight_curve_normal(s)[1]
+                )
+            else:
+                x = (
+                    straight_curve(s)[0]
+                    + linear_boundary(s) * straight_curve_normal(s)[0]
+                )
+                y = (
+                    straight_curve(s)[1]
+                    + linear_boundary(s) * straight_curve_normal(s)[1]
+                )
         return x, y
 
     def cos_lower(self, s: float) -> Tuple[float, float]:
@@ -83,6 +99,22 @@ class WaveDomain:
                 * cos_curve_normal(s, self.length_str_inlet, period=self.period)[1]
             )
         else:
-            x = straight_curve(s)[0] - linear_boundary(s) * straight_curve_normal(s)[0]
-            y = straight_curve(s)[1] - linear_boundary(s) * straight_curve_normal(s)[1]
+            if self.gradient != 0:
+                x = (
+                    straight_curve(s)[0]
+                    - linear_boundary(s, n=0.0125 / 2) * straight_curve_normal(s)[0]
+                )
+                y = (
+                    straight_curve(s)[1]
+                    - linear_boundary(s, n=0.0125 / 2) * straight_curve_normal(s)[1]
+                )
+            else:
+                x = (
+                    straight_curve(s)[0]
+                    - linear_boundary(s) * straight_curve_normal(s)[0]
+                )
+                y = (
+                    straight_curve(s)[1]
+                    - linear_boundary(s) * straight_curve_normal(s)[1]
+                )
         return x, y

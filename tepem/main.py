@@ -13,6 +13,8 @@ from backend.curve_shapes.curves import (
     straight_curve,
     straight_curve_normal,
 )
+from backend.curve_shapes.sudden_change_dom import SuddenChangeDomain
+from backend.curve_shapes.wave_domain import WaveDomain
 from backend.domain import Domain
 from backend.expected_solutions import EX_SOL, EX_SOL_q16
 from backend.high_res_mapping import get_high_res_phys_coords, get_high_res_solution
@@ -49,7 +51,7 @@ NU = 8.1e-2  # [Pa * s]
 RADIUS = 0.0125  # [m]
 LENGTH = 0.22  # [m]
 LENGTH_STR_INLET = 0.01  # [m]
-START_STR_OUTLET = 0.22
+START_STR_OUTLET = 0.21
 ANGLE = -5  # [°]
 CURVE_ANGLE = 0
 VOLUME_FLUX = 5e-3  # [m^3/(m^2*s) = m/s]
@@ -349,14 +351,26 @@ VELO_PARTIAL = True
 
 def main() -> None:
     num_slabs = 10
+    wave_bdn = WaveDomain(
+        length_str_inlet=LENGTH_STR_INLET,
+        start_str_outlet=START_STR_OUTLET,
+        init_radius=RADIUS,
+        gradient=0,
+        period=0.20 / 2,
+    )
+    bulge_bdn = SuddenChangeDomain(
+        dom_length=LENGTH, max_height=0.04, init_radius=RADIUS
+    )
     dom = Domain(
         LENGTH,
         # upper_bdn=straight_upper,
         # lower_bdn=straight_lower,
         # upper_bdn=straight_conv_upper,
         # lower_bdn=straight_conv_lower,
-        upper_bdn=cos_upper,
-        lower_bdn=cos_lower,
+        # upper_bdn=bulge_bdn.sudden_bdn_upper,
+        # lower_bdn=bulge_bdn.sudden_bdn_lower,
+        upper_bdn=wave_bdn.cos_upper,
+        lower_bdn=wave_bdn.cos_lower,
         # upper_bdn=sudden_bdn_upper,
         # lower_bdn=sudden_bdn_lower,
         # upper_bdn=curved_upper,
@@ -404,7 +418,8 @@ def main() -> None:
         velo_sf_shape=VELO_SHAPE,
         press_sf_shape=PRESSURE_SHAPE,
         phys_velo_dof_coords=phys_coords,
-        boundary_func=g_1,
+        const=C_CONST,
+        radius=RADIUS,
         velo_pt=VELO_PARTIAL,
     )
     d_matrix = np.transpose(g_matrix)
