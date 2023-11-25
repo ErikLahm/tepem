@@ -8,6 +8,13 @@ from backend.mapping import Mapping
 EPSILON = 1e-12
 
 
+def g_1(x_1: float, x_2: float, c: float, radius: float) -> float:
+    if x_1 < 1e-14:
+        return c * (radius - x_2) * (x_2 + radius)
+    else:
+        return 0
+
+
 def assemble_n(
     ref_ltg: npt.NDArray[np.int64],
     grad_sfs: List[Callable[[float, float], npt.NDArray[np.float64]]],
@@ -116,7 +123,8 @@ def assemble_rhs(
     velo_sf_shape: Tuple[int, int],
     press_sf_shape: Tuple[int, int],
     phys_velo_dof_coords: npt.NDArray[np.float64],
-    boundary_func: Callable[[float, float], float],
+    const: float,
+    radius: float,
     velo_pt: bool = True,
 ) -> npt.NDArray[np.float64]:
     num_pres_dof = (press_sf_shape[0] * num_slabs + 1) * (press_sf_shape[1] + 1)
@@ -126,7 +134,12 @@ def assemble_rhs(
         num_velo_bnd = velo_sf_shape[1] + 1
     for i in range(num_velo_bnd):
         rhs[i] = (
-            boundary_func(phys_velo_dof_coords[i][0], phys_velo_dof_coords[i][1])
+            g_1(
+                phys_velo_dof_coords[i][0],
+                phys_velo_dof_coords[i][1],
+                c=const,
+                radius=radius,
+            )
             * 1
             / EPSILON
         )

@@ -1,12 +1,12 @@
-import datetime
 import os
-from datetime import datetime
 from typing import Callable, List, Tuple
 
 import numpy as np
 import numpy.typing as npt
 from backend.assembling import add_inital_penalty, assemble_g, assemble_n, assemble_rhs
 from backend.curve_shapes.nozzle_dom import NozzleDomain
+from backend.curve_shapes.sudden_change_dom import SuddenChangeDomain
+from backend.curve_shapes.wave_domain import WaveDomain
 from backend.domain import Domain
 from backend.high_res_mapping import get_high_res_phys_coords, get_high_res_solution
 from backend.ltg_generator import generate_ltg
@@ -16,25 +16,18 @@ from backend.shape_functions.q_2_6_velo_cheb import (
     Q26_SF_CHEB_LIST,
 )
 
-NU = 8.1e-2  # [Pa * s]
-RADIUS = 0.0125  # [m]
-LENGTH = 0.12  # [m]
-LENGTH_STR_INLET = 0.01  # [m]
-START_STR_OUTLET = 0.11
-ANGLE = -5  # [°]
-CURVE_ANGLE = 0
-VOLUME_FLUX = 0.5e-2  # [m^3/(m^2*s) = m/s]
+# NU = 8.1e-2  # [Pa * s]
+# RADIUS = 0.0125  # [m]
+# LENGTH = 0.12  # [m]
+# LENGTH_STR_INLET = 0.01  # 0.01  # [m]
+# START_STR_OUTLET = 0.11  # 0.11 # [m]
+# ANGLE = -5  # [°]
+# CURVE_ANGLE = 0
+# VOLUME_FLUX = 5e-3  # 5e-4  # [m^3/(m^2*s) = m/s]
 
 # velo_shape = (2, 6)
 # pressure_shape = (1, 3)
 VELO_PARTIAL = True
-
-
-def g_1(x_1: float, x_2: float) -> float:
-    if x_1 < 1e-14:
-        return C_CONST * (RADIUS - x_2) * (x_2 + RADIUS)
-    else:
-        return 0
 
 
 def angle_to_gradient(angle: float) -> float:
@@ -46,13 +39,10 @@ def angle_to_radian(angle: float) -> float:
     return angle / 180 * np.pi
 
 
-def get_constant(mass_flow: float) -> float:
+def get_constant(mass_flow: float, radius: float) -> float:
     return mass_flow / (
-        (RADIUS**2 * (2 * RADIUS) - 1 / 3 * (RADIUS**3 - (-RADIUS) ** 3))
+        (radius**2 * (2 * radius) - 1 / 3 * (radius**3 - (-radius) ** 3))
     )
-
-
-C_CONST = get_constant(VOLUME_FLUX)
 
 
 def assemble_system(
@@ -62,6 +52,9 @@ def assemble_system(
     p_sf: list[Callable[[float, float], float]],
     velo_shape: Tuple[int, int],
     pressure_shape: Tuple[int, int],
+    bdn_const: float,
+    radius: float,
+    nu: float,
 ):
     dom_coords, dom_ltg = dom.slice_domain(num_slabs)
     phys_coords = dom.get_phy_dof_coords(
@@ -76,7 +69,7 @@ def assemble_system(
         grad_sfs=v_sf,
         domain_coords=dom_coords,
         domain_ltg=dom_ltg,
-        nu=NU,
+        nu=nu,
     )
     n_matrix = add_inital_penalty(
         num_slabs=num_slabs,
@@ -97,7 +90,8 @@ def assemble_system(
         velo_sf_shape=velo_shape,
         press_sf_shape=pressure_shape,
         phys_velo_dof_coords=phys_coords,
-        boundary_func=g_1,
+        const=bdn_const,
+        radius=radius,
         velo_pt=VELO_PARTIAL,
     )
     d_matrix = np.transpose(g_matrix)
@@ -131,26 +125,151 @@ def interpolate_high_res_sol(
 def simulate_nozzles(
     num_slabs: int,
     angles: list[float],
+    fluxes: dict[str, float],
     v_sf: list[Callable[[float, float], float]],
     v_sf_grad: list[Callable[[float, float], npt.NDArray[np.float64]]],
     p_sf: list[Callable[[float, float], float]],
     v_shape: Tuple[int, int],
     p_shape: Tuple[int, int],
+    length: float,
+    init_radius: float,
+    length_str_inlet: float,
+    start_str_outlet: float,
+    nu: float,
 ):
-    now = datetime.now()
-    folder_name = now.strftime("%m-%d_%H-%M")
-    folder_name = f"nozzles_{num_slabs}__" + folder_name
-    for angle in angles:
-        nozzle_bdn = NozzleDomain(
-            length_str_inlet=LENGTH_STR_INLET,
-            start_str_outlet=START_STR_OUTLET,
-            init_radius=RADIUS,
-            angle=angle,
+    for speed, flux in fluxes.items():
+        folder_name = f"nozzles_n{num_slabs}_q{speed}"
+        bdn_constant = get_constant(mass_flow=flux, radius=init_radius)
+        for angle in angles:
+            nozzle_bdn = NozzleDomain(
+                length_str_inlet=length_str_inlet,
+                start_str_outlet=start_str_outlet,
+                init_radius=init_radius,
+                angle=angle,
+            )
+            dom = Domain(
+                length=length,
+                upper_bdn=nozzle_bdn.straight_conv_upper,
+                lower_bdn=nozzle_bdn.straight_conv_lower,
+            )
+            s_matrix, rhs = assemble_system(
+                num_slabs=num_slabs,
+                dom=dom,
+                v_sf=v_sf_grad,
+                p_sf=p_sf,
+                velo_shape=v_shape,
+                pressure_shape=p_shape,
+                bdn_const=bdn_constant,
+                radius=init_radius,
+                nu=nu,
+            )
+            solution = np.linalg.solve(s_matrix, rhs)
+            num_velo_dof = (v_shape[0] * num_slabs + 1) * (v_shape[1] + 1)
+            if VELO_PARTIAL:
+                num_velo_dof = (v_shape[0] * num_slabs + 1) * (v_shape[1] - 1)
+
+            # get original solution
+            u = solution[:num_velo_dof]
+            v = solution[num_velo_dof : 2 * num_velo_dof]
+            p = solution[2 * num_velo_dof :]
+            phys_coords = dom.get_phy_dof_coords(
+                num_slabs, sf_shape=v_shape, velo_sf=VELO_PARTIAL, cheby_points=True
+            )
+            phys_pre_coords = dom.get_phy_dof_coords(
+                num_slabs, sf_shape=p_shape, cheby_points=True
+            )
+            velocity_sol = np.hstack((u, v))
+            velocity_lr = np.hstack((phys_coords, velocity_sol))
+            pressure_lr = np.hstack((phys_pre_coords, p))
+
+            # get high resolution solution
+            dom_coords, dom_ltg = dom.slice_domain(num_slabs)
+            velo_ltg = generate_ltg(
+                num_slabs=num_slabs, fe_order=v_shape, velocity_ltg=VELO_PARTIAL
+            )
+            pres_ltg = generate_ltg(num_slabs=num_slabs, fe_order=p_shape)
+            u_hr, x_hr_u, y_hr_u = interpolate_high_res_sol(
+                low_res_sol=u,
+                ltg=velo_ltg,
+                dom_coords=dom_coords,
+                dom_ltg=dom_ltg,
+                x_res=2,
+                y_res=40,
+                shape_funcs=v_sf,
+            )
+            v_hr, _, _ = interpolate_high_res_sol(
+                low_res_sol=v,
+                ltg=velo_ltg,
+                dom_coords=dom_coords,
+                dom_ltg=dom_ltg,
+                x_res=2,
+                y_res=40,
+                shape_funcs=v_sf,
+            )
+            p_hr, x_hr_p, y_hr_p = interpolate_high_res_sol(
+                low_res_sol=p,
+                ltg=pres_ltg,
+                dom_coords=dom_coords,
+                dom_ltg=dom_ltg,
+                x_res=40,
+                y_res=120,
+                shape_funcs=Q13_SF_CHEB_LIST,
+            )
+            velocity_sol = np.vstack((u_hr, v_hr))
+            velocity_coords_hr = np.vstack((x_hr_u, y_hr_u))
+            velocity_hr = np.vstack((velocity_coords_hr, velocity_sol)).T
+            pressure_coords_hr = np.vstack((x_hr_p, y_hr_p))
+            pressure_hr = np.vstack((pressure_coords_hr, p_hr)).T
+            save_arrays_as_csv(
+                arrays=[velocity_lr, pressure_lr, velocity_hr, pressure_hr],
+                directory_path="/Users/erikweilandt/Documents/university/master_thesis/tepem/results",
+                folder_name=folder_name,
+                sub_folder_name=f"H{abs(angle)}",
+            )
+            save_output_file(
+                directory_path=os.path.join(
+                    "/Users/erikweilandt/Documents/university/master_thesis/tepem/results",
+                    folder_name,
+                ),
+                rho=980,
+                mu=nu,
+                q=flux,
+                radius=init_radius,
+                length=length,
+                num_slabs=num_slabs,
+            )
+
+
+def simulate_wave(
+    num_slabs: int,
+    fluxes: dict[str, float],
+    v_sf: list[Callable[[float, float], float]],
+    v_sf_grad: list[Callable[[float, float], npt.NDArray[np.float64]]],
+    p_sf: list[Callable[[float, float], float]],
+    v_shape: Tuple[int, int],
+    p_shape: Tuple[int, int],
+    length: float,
+    init_radius: float,
+    gradient: float,
+    period: float,
+    length_str_inlet: float,
+    start_str_outlet: float,
+    nu: float,
+):
+    folder_name = f"wave_n{num_slabs}"
+    for speed, flux in fluxes.items():
+        bdn_constant = get_constant(mass_flow=flux, radius=init_radius)
+        wave_bdn = WaveDomain(
+            length_str_inlet=length_str_inlet,
+            start_str_outlet=start_str_outlet,
+            init_radius=init_radius,
+            gradient=gradient,
+            period=period,
         )
         dom = Domain(
-            length=0.12,
-            upper_bdn=nozzle_bdn.straight_conv_upper,
-            lower_bdn=nozzle_bdn.straight_conv_lower,
+            length=length,
+            upper_bdn=wave_bdn.cos_upper,
+            lower_bdn=wave_bdn.cos_lower,
         )
         s_matrix, rhs = assemble_system(
             num_slabs=num_slabs,
@@ -159,6 +278,9 @@ def simulate_nozzles(
             p_sf=p_sf,
             velo_shape=v_shape,
             pressure_shape=p_shape,
+            bdn_const=bdn_constant,
+            radius=init_radius,
+            nu=nu,
         )
         solution = np.linalg.solve(s_matrix, rhs)
         num_velo_dof = (v_shape[0] * num_slabs + 1) * (v_shape[1] + 1)
@@ -221,8 +343,157 @@ def simulate_nozzles(
             arrays=[velocity_lr, pressure_lr, velocity_hr, pressure_hr],
             directory_path="/Users/erikweilandt/Documents/university/master_thesis/tepem/results",
             folder_name=folder_name,
-            sub_folder_name=f"H{abs(angle)}",
+            sub_folder_name=f"W{speed}",
         )
+        save_output_file(
+            directory_path=os.path.join(
+                "/Users/erikweilandt/Documents/university/master_thesis/tepem/results",
+                folder_name,
+            ),
+            rho=980,
+            mu=nu,
+            q=flux,
+            radius=init_radius,
+            length=length,
+            num_slabs=num_slabs,
+        )
+
+
+def simulate_bulge(
+    num_slabs: int,
+    fluxes: dict[str, float],
+    v_sf: list[Callable[[float, float], float]],
+    v_sf_grad: list[Callable[[float, float], npt.NDArray[np.float64]]],
+    p_sf: list[Callable[[float, float], float]],
+    v_shape: Tuple[int, int],
+    p_shape: Tuple[int, int],
+    length: float,
+    init_radius: float,
+    max_heights: list[float],
+    nu: float,
+):
+    for speed, flux in fluxes.items():
+        folder_name = f"bulge_n{num_slabs}_q{speed}"
+        bdn_constant = get_constant(mass_flow=flux, radius=init_radius)
+        for height in max_heights:
+            bulge_bdn = SuddenChangeDomain(
+                dom_length=length,
+                max_height=height,
+                init_radius=init_radius,
+            )
+            dom = Domain(
+                length=length,
+                upper_bdn=bulge_bdn.sudden_bdn_upper,
+                lower_bdn=bulge_bdn.sudden_bdn_lower,
+            )
+            s_matrix, rhs = assemble_system(
+                num_slabs=num_slabs,
+                dom=dom,
+                v_sf=v_sf_grad,
+                p_sf=p_sf,
+                velo_shape=v_shape,
+                pressure_shape=p_shape,
+                bdn_const=bdn_constant,
+                radius=init_radius,
+                nu=nu,
+            )
+            solution = np.linalg.solve(s_matrix, rhs)
+            num_velo_dof = (v_shape[0] * num_slabs + 1) * (v_shape[1] + 1)
+            if VELO_PARTIAL:
+                num_velo_dof = (v_shape[0] * num_slabs + 1) * (v_shape[1] - 1)
+
+            # get original solution
+            u = solution[:num_velo_dof]
+            v = solution[num_velo_dof : 2 * num_velo_dof]
+            p = solution[2 * num_velo_dof :]
+            phys_coords = dom.get_phy_dof_coords(
+                num_slabs, sf_shape=v_shape, velo_sf=VELO_PARTIAL, cheby_points=True
+            )
+            phys_pre_coords = dom.get_phy_dof_coords(
+                num_slabs, sf_shape=p_shape, cheby_points=True
+            )
+            velocity_sol = np.hstack((u, v))
+            velocity_lr = np.hstack((phys_coords, velocity_sol))
+            pressure_lr = np.hstack((phys_pre_coords, p))
+
+            # get high resolution solution
+            dom_coords, dom_ltg = dom.slice_domain(num_slabs)
+            velo_ltg = generate_ltg(
+                num_slabs=num_slabs, fe_order=v_shape, velocity_ltg=VELO_PARTIAL
+            )
+            pres_ltg = generate_ltg(num_slabs=num_slabs, fe_order=p_shape)
+            u_hr, x_hr_u, y_hr_u = interpolate_high_res_sol(
+                low_res_sol=u,
+                ltg=velo_ltg,
+                dom_coords=dom_coords,
+                dom_ltg=dom_ltg,
+                x_res=2,
+                y_res=40,
+                shape_funcs=v_sf,
+            )
+            v_hr, _, _ = interpolate_high_res_sol(
+                low_res_sol=v,
+                ltg=velo_ltg,
+                dom_coords=dom_coords,
+                dom_ltg=dom_ltg,
+                x_res=2,
+                y_res=40,
+                shape_funcs=v_sf,
+            )
+            p_hr, x_hr_p, y_hr_p = interpolate_high_res_sol(
+                low_res_sol=p,
+                ltg=pres_ltg,
+                dom_coords=dom_coords,
+                dom_ltg=dom_ltg,
+                x_res=40,
+                y_res=120,
+                shape_funcs=Q13_SF_CHEB_LIST,
+            )
+            velocity_sol = np.vstack((u_hr, v_hr))
+            velocity_coords_hr = np.vstack((x_hr_u, y_hr_u))
+            velocity_hr = np.vstack((velocity_coords_hr, velocity_sol)).T
+            pressure_coords_hr = np.vstack((x_hr_p, y_hr_p))
+            pressure_hr = np.vstack((pressure_coords_hr, p_hr)).T
+            save_arrays_as_csv(
+                arrays=[velocity_lr, pressure_lr, velocity_hr, pressure_hr],
+                directory_path="/Users/erikweilandt/Documents/university/master_thesis/tepem/results",
+                folder_name=folder_name,
+                sub_folder_name=f"B{str(height).replace('.','')}",
+            )
+            save_output_file(
+                directory_path=os.path.join(
+                    "/Users/erikweilandt/Documents/university/master_thesis/tepem/results",
+                    folder_name,
+                ),
+                rho=980,
+                mu=nu,
+                q=flux,
+                radius=init_radius,
+                length=length,
+                num_slabs=num_slabs,
+            )
+
+
+def save_output_file(
+    directory_path: str,
+    rho: float,
+    mu: float,
+    q: float,
+    radius: float,
+    length: float,
+    num_slabs: int,
+):
+    f = open(os.path.join(directory_path, "output.txt"), "w")
+    output = (
+        f"density [kg/m^3]: {rho}\n"
+        f"viscosity [Pa s]: {mu}\n"
+        f"flow flux [m/s]: {q}\n"
+        f"radius [m]: {radius}\n"
+        f"length [m]: {length}\n"
+        f"number of slabs [1]: {num_slabs}\n"
+        f"Reynolds number [1]: {(rho * q)/mu}"
+    )
+    f.write(output)
 
 
 def save_arrays_as_csv(
@@ -249,16 +520,61 @@ def save_arrays_as_csv(
         np.savetxt(file_path, array, delimiter=",")
 
 
+fluxes = {
+    "slow": 5e-4,
+    "normal": 5e-3,
+    "fast": 5e-2,
+    "ffast": 5e-1,
+    "fffast": 5,
+    "ffffast": 50,
+}
+
+
 def main():
     simulate_nozzles(
         num_slabs=10,
-        angles=[0, -1, -3, -5],
+        angles=[0, -3, -5],
+        fluxes=fluxes,
         v_sf=Q26_SF_CHEB_LIST,
         v_sf_grad=Q26_GRAD_SF_CHEB_LIST,
         p_sf=Q13_SF_CHEB_LIST,
         v_shape=(2, 6),
         p_shape=(1, 3),
+        init_radius=0.0125,
+        length_str_inlet=0.01,
+        start_str_outlet=0.11,
+        length=0.12,
+        nu=8.1e-2,
     )
+    # simulate_wave(
+    #     num_slabs=10,
+    #     fluxes=fluxes,
+    #     v_sf=Q26_SF_CHEB_LIST,
+    #     v_sf_grad=Q26_GRAD_SF_CHEB_LIST,
+    #     p_sf=Q13_SF_CHEB_LIST,
+    #     v_shape=(2, 6),
+    #     p_shape=(1, 3),
+    #     init_radius=0.0125,
+    #     length=0.22,
+    #     gradient=-(0.00625 / 0.21),
+    #     period=0.21,
+    #     length_str_inlet=0.01,
+    #     start_str_outlet=0.22,
+    #     nu=8.1e-2,
+    # )
+    # simulate_bulge(
+    #     num_slabs=10,
+    #     fluxes={"normal": 5e-3},
+    #     v_sf=Q26_SF_CHEB_LIST,
+    #     v_sf_grad=Q26_GRAD_SF_CHEB_LIST,
+    #     p_sf=Q13_SF_CHEB_LIST,
+    #     v_shape=(2, 6),
+    #     p_shape=(1, 3),
+    #     length=0.22,
+    #     init_radius=0.0125,
+    #     max_heights=[0.02, 0.03, 0.04, 0.05],
+    #     nu=8.1e-2,
+    # )
     print("success")
 
 

@@ -24,13 +24,21 @@ class NozzleDomain:
 
     def straight_conv_upper(self, s: float) -> Tuple[float, float]:
         if s <= self.length_str_inlet:
-            x = straight_curve(s)[0] + linear_boundary(s) * straight_curve_normal(s)[0]
-            y = straight_curve(s)[1] + linear_boundary(s) * straight_curve_normal(s)[1]
+            x = (
+                straight_curve(s)[0]
+                + linear_boundary(s, n=self.init_radius) * straight_curve_normal(s)[0]
+            )
+            y = (
+                straight_curve(s)[1]
+                + linear_boundary(s, n=self.init_radius) * straight_curve_normal(s)[1]
+            )
         elif s > self.length_str_inlet and s <= self.start_str_outlet:
             x = (
                 straight_curve(s)[0]
                 + (
-                    linear_boundary(s, m=angle_to_gradient(self.angle))
+                    linear_boundary(
+                        s, m=angle_to_gradient(self.angle), n=self.init_radius
+                    )
                     - self.length_str_inlet * angle_to_gradient(self.angle)
                 )
                 * straight_curve_normal(s)[0]
@@ -38,7 +46,9 @@ class NozzleDomain:
             y = (
                 straight_curve(s)[1]
                 + (
-                    linear_boundary(s, m=angle_to_gradient(self.angle))
+                    linear_boundary(
+                        s, m=angle_to_gradient(self.angle), n=self.init_radius
+                    )
                     - self.length_str_inlet * angle_to_gradient(self.angle)
                 )
                 * straight_curve_normal(s)[1]
@@ -60,13 +70,21 @@ class NozzleDomain:
 
     def straight_conv_lower(self, s: float) -> Tuple[float, float]:
         if s <= self.length_str_inlet:
-            x = straight_curve(s)[0] - linear_boundary(s) * straight_curve_normal(s)[0]
-            y = straight_curve(s)[1] - linear_boundary(s) * straight_curve_normal(s)[1]
+            x = (
+                straight_curve(s)[0]
+                - linear_boundary(s, n=self.init_radius) * straight_curve_normal(s)[0]
+            )
+            y = (
+                straight_curve(s)[1]
+                - linear_boundary(s, n=self.init_radius) * straight_curve_normal(s)[1]
+            )
         elif s > self.length_str_inlet and s <= self.start_str_outlet:
             x = (
                 straight_curve(s)[0]
                 - (
-                    linear_boundary(s, m=angle_to_gradient(self.angle))
+                    linear_boundary(
+                        s, m=angle_to_gradient(self.angle), n=self.init_radius
+                    )
                     - self.length_str_inlet * angle_to_gradient(self.angle)
                 )
                 * straight_curve_normal(s)[0]
@@ -74,7 +92,9 @@ class NozzleDomain:
             y = (
                 straight_curve(s)[1]
                 - (
-                    linear_boundary(s, m=angle_to_gradient(self.angle))
+                    linear_boundary(
+                        s, m=angle_to_gradient(self.angle), n=self.init_radius
+                    )
                     - self.length_str_inlet * angle_to_gradient(self.angle)
                 )
                 * straight_curve_normal(s)[1]

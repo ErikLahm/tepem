@@ -17,16 +17,16 @@ def straight_curve_normal(s: float, m: float = DEFAULT_GRAD) -> Tuple[float, flo
 
 
 def cos_curve(
-    s: float, hori_offset: float = 0, amplitude: float = 0.01
+    s: float, hori_offset: float = 0.01, amplitude: float = 0.01, period: float = 0.21
 ) -> Tuple[float, float]:
-    return (s, amplitude * np.cos(2 * np.pi / 0.1 * (s - 0.01)) - amplitude)
+    return (s, amplitude * np.cos(2 * np.pi / period * (s - hori_offset)) - amplitude)
 
 
 def cos_curve_normal(
-    s: float, hori_offset: float = 0, amplitude: float = 0.01
+    s: float, hori_offset: float = 0.01, amplitude: float = 0.01, period: float = 0.21
 ) -> Tuple[float, float]:
     x = 1
-    y = -2 * np.pi / 0.1 * amplitude * np.sin(2 * np.pi / 0.1 * (s - 0.01))
+    y = -2 * np.pi / period * amplitude * np.sin(2 * np.pi / period * (s - hori_offset))
     norm = np.sqrt(x**2 + y**2)
     return (-y / norm, x / norm)
 

@@ -96,11 +96,11 @@ def plot_velo_pres_sol(
     # ax.plot(x_p, y_p, "ko")
     arrow_lengths = np.sqrt(u_x**2 + u_y**2)
     pc = ax.quiver(  # type: ignore
-        x_u,
-        y_u,
-        u_x,
-        u_y,
-        arrow_lengths,
+        x_u[::4],
+        y_u[::4],
+        u_x[::4],
+        u_y[::4],
+        # arrow_lengths[::4],
         # scale=0.0025,
         # scale_units="width",
         # units="width",
